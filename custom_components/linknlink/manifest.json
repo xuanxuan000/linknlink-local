@@ -14,5 +14,6 @@
   "documentation": "https://www.home-assistant.io/integrations/linknlink",
   "iot_class": "local_polling",
   "loggers": ["linknlink"],
-  "requirements": ["linknlink==0.1.9"]
+  "requirements": ["linknlink==0.1.9"],
+  "version": "2024.2.29"
 }
