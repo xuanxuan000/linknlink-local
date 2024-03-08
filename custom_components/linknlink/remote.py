@@ -42,8 +42,9 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
-from .entity import LinknLinkEntity
 from .helpers import data_packet
+from .coordinator import LinknLinkCoordinator
+from .entity import LinknLinkEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -87,21 +88,20 @@ SERVICE_DELETE_SCHEMA = COMMAND_SCHEMA.extend(
     {vol.Required(ATTR_DEVICE): vol.All(cv.string, vol.Length(min=1))}
 )
 
-
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up a linknlink remote."""
-    device = hass.data[DOMAIN].devices[config_entry.entry_id]
+    """Set up the linknlink sensor."""
+
+    coordinator: LinknLinkCoordinator = hass.data[DOMAIN][config_entry.entry_id]
     remote = LinknLinkRemote(
-        device,
-        Store(hass, CODE_STORAGE_VERSION, f"linknlink_remote_{device.unique_id}_codes"),
-        Store(hass, FLAG_STORAGE_VERSION, f"linknlink_remote_{device.unique_id}_flags"),
+        coordinator,
+        Store(hass, CODE_STORAGE_VERSION, f"linknlink_remote_{coordinator.api.mac.hex()}_codes"),
+        Store(hass, FLAG_STORAGE_VERSION, f"linknlink_remote_{coordinator.api.mac.hex()}_flags"),
     )
     async_add_entities([remote], False)
-
 
 class LinknLinkRemote(LinknLinkEntity, RemoteEntity, RestoreEntity):
     """Representation of a linknlink remote."""
@@ -109,9 +109,14 @@ class LinknLinkRemote(LinknLinkEntity, RemoteEntity, RestoreEntity):
     _attr_has_entity_name = True
     _attr_name = None
 
-    def __init__(self, device, codes, flags):
+    def __init__(
+            self,
+            coordinator: LinknLinkCoordinator,
+            codes:Store,
+            flags:Store
+         ):
         """Initialize the remote."""
-        super().__init__(device)
+        super().__init__(coordinator)
         self._code_storage = codes
         self._flag_storage = flags
         self._storage_loaded = False
@@ -123,7 +128,7 @@ class LinknLinkRemote(LinknLinkEntity, RemoteEntity, RestoreEntity):
         self._attr_supported_features = (
             RemoteEntityFeature.LEARN_COMMAND | RemoteEntityFeature.DELETE_COMMAND
         )
-        self._attr_unique_id = device.unique_id
+        self._attr_unique_id = f"{coordinator.api.mac.hex()}-remote"
 
     def _extract_codes(self, commands, device=None):
         """Extract a list of codes.
@@ -211,7 +216,7 @@ class LinknLinkRemote(LinknLinkEntity, RemoteEntity, RestoreEntity):
         repeat = kwargs[ATTR_NUM_REPEATS]
         delay = kwargs[ATTR_DELAY_SECS]
         service = f"{RM_DOMAIN}.{SERVICE_SEND_COMMAND}"
-        device = self._device
+        device = self.coordinator
 
         if not self._attr_is_on:
             _LOGGER.warning(
@@ -267,7 +272,7 @@ class LinknLinkRemote(LinknLinkEntity, RemoteEntity, RestoreEntity):
         subdevice = kwargs[ATTR_DEVICE]
         toggle = kwargs[ATTR_ALTERNATIVE]
         service = f"{RM_DOMAIN}.{SERVICE_LEARN_COMMAND}"
-        device = self._device
+        device = self.coordinator
 
         if not self._attr_is_on:
             _LOGGER.warning(
@@ -314,7 +319,7 @@ class LinknLinkRemote(LinknLinkEntity, RemoteEntity, RestoreEntity):
 
     async def _async_learn_ir_command(self, command):
         """Learn an infrared command."""
-        device = self._device
+        device = self.coordinator
 
         try:
             await device.async_request(device.api.enter_learning)
@@ -352,7 +357,7 @@ class LinknLinkRemote(LinknLinkEntity, RemoteEntity, RestoreEntity):
 
     async def _async_learn_rf_command(self, command):
         """Learn a radiofrequency command."""
-        device = self._device
+        device = self.coordinator
 
         try:
             await device.async_request(device.api.sweep_frequency)

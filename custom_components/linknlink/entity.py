@@ -1,66 +1,26 @@
-"""linknlink entities."""
-
+"""LinknLink Entities."""
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
+from .coordinator import LinknLinkCoordinator
 
 
-class LinknLinkEntity(Entity):
-    """Representation of a linknlink entity."""
+class LinknLinkEntity(CoordinatorEntity[LinknLinkCoordinator]):
+    """To manage the device info."""
 
-    _attr_should_poll = False
+    _attr_has_entity_name = True
 
-    def __init__(self, device):
-        """Initialize the entity."""
-        self._device = device
-        self._coordinator = device.update_manager.coordinator
-
-    async def async_added_to_hass(self):
-        """Call when the entity is added to hass."""
-        self.async_on_remove(self._coordinator.async_add_listener(self._recv_data))
-
-    async def async_update(self):
-        """Update the state of the entity."""
-        await self._coordinator.async_request_refresh()
-
-    def _recv_data(self):
-        """Receive data from the update coordinator.
-
-        This event listener should be called by the coordinator whenever
-        there is an update available.
-
-        It works as a template for the _update_state() method, which should
-        be overridden by child classes in order to update the state of the
-        entities, when applicable.
-        """
-        if self._coordinator.last_update_success:
-            self._update_state(self._coordinator.data)
-        self.async_write_ha_state()
-
-    def _update_state(self, data):
-        """Update the state of the entity.
-
-        This method should be overridden by child classes in order to
-        internalize state and attributes received from the coordinator.
-        """
-
-    @property
-    def available(self):
-        """Return True if the entity is available."""
-        return self._device.available
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device info."""
-        device = self._device
-
-        return DeviceInfo(
-            connections={(dr.CONNECTION_NETWORK_MAC, device.mac_address)},
-            identifiers={(DOMAIN, device.unique_id)},
-            manufacturer=device.api.manufacturer,
-            model=device.api.model,
-            name=device.name,
-            sw_version=device.fw_version,
+    def __init__(self, coordinator: LinknLinkCoordinator) -> None:
+        """Initialize coordinator entity."""
+        super().__init__(coordinator)
+        self.api = coordinator.api
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, self.api.mac.hex())},
+            connections={(dr.CONNECTION_NETWORK_MAC, self.api.mac.hex())},
+            name=self.api.name,
+            manufacturer=self.api.manufacturer,
+            model=self.api.model,
+            sw_version=str(coordinator.fw_version),
         )

@@ -1,57 +1,54 @@
 """The linknlink integration."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import logging
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_MAC
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers.typing import ConfigType
+from homeassistant.exceptions import ConfigEntryNotReady
 
-from .const import DOMAIN
-from .device import LinknLinkDevice
-from .heartbeat import LinknLinkHeartbeat
+from .const import DOMAIN, get_domains
+from .coordinator import LinknLinkCoordinator
 
-CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
-
-
-@dataclass
-class linknlinkData:
-    """Class for sharing data within the linknlink integration."""
-
-    devices: dict[str, LinknLinkDevice] = field(default_factory=dict)
-    platforms: dict = field(default_factory=dict)
-    heartbeat: LinknLinkHeartbeat | None = None
-
-
-async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up the linknlink integration."""
-    hass.data[DOMAIN] = linknlinkData()
-    return True
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up a linknlink device from a config entry."""
-    data: linknlinkData = hass.data[DOMAIN]
+    coordinator = LinknLinkCoordinator(hass, entry.data[CONF_MAC])
+    if not await coordinator.async_setup():
+        _LOGGER.error(
+            "Unable to setup linknlink device - config=%s",
+            coordinator.config_entry.data,
+        )
+        raise ConfigEntryNotReady
 
-    device = LinknLinkDevice(hass, entry)
-    if not await device.async_setup():
-        return False
-    if data.heartbeat is None:
-        data.heartbeat = LinknLinkHeartbeat(hass)
-        hass.async_create_task(data.heartbeat.async_setup())
+    unlisten = entry.add_update_listener(async_update)
+    entry.async_on_unload(unlisten)
+
+    await coordinator.async_config_entry_first_refresh()
+
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+    # Forward entry setup to related domains.
+    await hass.config_entries.async_forward_entry_setups(
+        entry, get_domains(coordinator.api.type)
+    )
+
     return True
+
+
+async def async_update(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Handle options update."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    data: linknlinkData = hass.data[DOMAIN]
-
-    device = data.devices.pop(entry.entry_id)
-    result = await device.async_unload()
-
-    if data.heartbeat and not data.devices:
-        await data.heartbeat.async_unload()
-        data.heartbeat = None
-
-    return result
+    device: LinknLinkCoordinator = hass.data[DOMAIN][entry.entry_id]
+    unload_ok = await hass.config_entries.async_unload_platforms(
+        entry, get_domains(device.api.type)
+    )
+    if unload_ok:
+        hass.data[DOMAIN].pop(entry.entry_id)
+    return unload_ok

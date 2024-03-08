@@ -1,6 +1,8 @@
 """Support for linknlink sensors."""
 from __future__ import annotations
 
+import logging
+
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -9,13 +11,16 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import PERCENTAGE, UnitOfTemperature
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
+from .coordinator import LinknLinkCoordinator
 from .entity import LinknLinkEntity
 
-SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
+_LOGGER = logging.getLogger(__name__)
+
+HUMITURE_SENSORS: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(
         key="envtemp",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
@@ -28,10 +33,6 @@ SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.HUMIDITY,
         state_class=SensorStateClass.MEASUREMENT,
     ),
-    SensorEntityDescription(
-        key="pir_detected",
-        device_class=SensorDeviceClass.ENUM,
-    ),
 )
 
 
@@ -41,35 +42,42 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the linknlink sensor."""
-    device = hass.data[DOMAIN].devices[config_entry.entry_id]
-    sensor_data = device.update_manager.coordinator.data
-    sensors = [
-        LinknLinkSensor(device, description)
-        for description in SENSOR_TYPES
-        if description.key in sensor_data
-        and (
-            # These devices have optional sensors.
-            # We don't create entities if the value is 0.
-            sensor_data[description.key] != 0
-            or device.api.type not in {"RM4PRO", "RM4MINI"}
-        )
-    ]
-    async_add_entities(sensors)
+
+    coordinator: LinknLinkCoordinator = hass.data[DOMAIN][config_entry.entry_id]
+    async_add_entities(
+        LinknLinkSensor(coordinator, description) for description in HUMITURE_SENSORS
+    )
 
 
 class LinknLinkSensor(LinknLinkEntity, SensorEntity):
     """Representation of a linknlink sensor."""
 
-    _attr_has_entity_name = True
-
-    def __init__(self, device, description: SensorEntityDescription) -> None:
+    def __init__(
+        self,
+        coordinator: LinknLinkCoordinator,
+        description: SensorEntityDescription,
+    ) -> None:
         """Initialize the sensor."""
-        super().__init__(device)
+        super().__init__(coordinator)
         self.entity_description = description
 
-        self._attr_native_value = self._coordinator.data[description.key]
-        self._attr_unique_id = f"{device.unique_id}-{description.key}"
+        self._attr_unique_id = f"{coordinator.api.mac.hex()}-{description.key}"
+        self._update_attr()
 
-    def _update_state(self, data):
-        """Update the state of the entity."""
-        self._attr_native_value = data[self.entity_description.key]
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle coordinator update."""
+        self._update_attr()
+        super()._handle_coordinator_update()
+
+    @callback
+    def _update_attr(self) -> None:
+        """Update attributes for sensor."""
+        try:
+            self._attr_native_value = float(
+                self.coordinator.data[self.entity_description.key]
+            )
+        except KeyError:
+            _LOGGER.error(
+                "Failed get the value of key: %s", self.entity_description.key
+            )
