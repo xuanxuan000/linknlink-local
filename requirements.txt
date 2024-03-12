@@ -1,1 +1,1 @@
-linknlink==0.1.9
+linknlink==0.2.1
