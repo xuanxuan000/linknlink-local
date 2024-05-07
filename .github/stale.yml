@@ -1,0 +1,29 @@
+# 标记为"stale"的天数（没有活动时）
+days-before-stale: 30
+
+# 标记为"stale"时的标签
+stale-label: "stale"
+
+# 在被标记为"stale"后多少天关闭
+days-before-close: 7
+
+# 关闭时的注释
+close-comment: "This issue has been automatically closed because it has been inactive for too long."
+
+# 定义哪些标签不会被标记为"stale"
+exempt-issue-labels:
+  - "important"
+  - "in-progress"
+
+# 定义哪些用户不会触发"stale"逻辑
+exempt-issue-assignees:
+  - "admin"
+
+# 定义机器人如何处理Pull Request
+only-issues: false  # 是否仅处理Issue
+
+# PR被标记为"stale"时的标签
+stale-pr-label: "stale-pr"
+
+# PR被关闭时的注释
+close-pr-comment: "This PR has been automatically closed because it has been inactive for too long."
