@@ -4,10 +4,13 @@ from homeassistant.const import Platform
 DOMAIN = "linknlink"
 
 DOMAINS_AND_TYPES = {
+    # Platform.REMOTE: {"EHUB", "EREMOTE"},
+    # Platform.SENSOR: {"EHUB", "ETHS", "EREMOTE"},
+    # Platform.BINARY_SENSOR: {"EHUB", "EMOTION", "EREMOTE"},
+    # Platform.BUTTON: {"EREMOTE"},
     Platform.REMOTE: {"EHUB", "EREMOTE"},
-    Platform.SENSOR: {"EHUB", "ETHS", "EREMOTE"},
-    Platform.BINARY_SENSOR: {"EHUB", "EMOTION", "EREMOTE"},
-    Platform.BUTTON: {"EREMOTE"},
+    Platform.SENSOR: {"EHUB", "ETHS"},
+    Platform.BINARY_SENSOR: {"EHUB", "EMOTION"},
 }
 DEVICE_TYPES = set.union(*DOMAINS_AND_TYPES.values())
 
