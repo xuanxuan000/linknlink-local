@@ -45,7 +45,9 @@ async def async_setup_entry(
 
     coordinator: LinknLinkCoordinator = hass.data[DOMAIN][config_entry.entry_id]
     async_add_entities(
-        LinknLinkSensor(coordinator, description) for description in HUMITURE_SENSORS
+        LinknLinkSensor(coordinator, description)
+        for description in HUMITURE_SENSORS
+        if description.key in coordinator.data
     )
 
 
@@ -59,10 +61,10 @@ class LinknLinkSensor(LinknLinkEntity, SensorEntity):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
-        self.entity_description = description
-
-        self._attr_unique_id = f"{coordinator.api.mac.hex()}-{description.key}"
-        self._update_attr()
+        if description.key in self.coordinator.data:
+            self.entity_description = description
+            self._attr_unique_id = f"{coordinator.api.mac.hex()}-{description.key}"
+            self._update_attr()
 
     @callback
     def _handle_coordinator_update(self) -> None:

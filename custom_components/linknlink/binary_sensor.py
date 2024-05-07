@@ -19,6 +19,10 @@ BINARY_SENSOR_TYPES: tuple[BinarySensorEntityDescription, ...] = (
         key="pir_detected",
         device_class=BinarySensorDeviceClass.MOTION,
     ),
+    BinarySensorEntityDescription(
+        key="doorsensor_status",
+        device_class=BinarySensorDeviceClass.DOOR,
+    ),
 )
 
 
@@ -33,6 +37,7 @@ async def async_setup_entry(
     async_add_entities(
         LinknLinkBinarySensor(coordinator, description)
         for description in BINARY_SENSOR_TYPES
+        if description.key in coordinator.data
     )
 
 
@@ -48,10 +53,10 @@ class LinknLinkBinarySensor(LinknLinkEntity, BinarySensorEntity):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
-        self.entity_description = description
-
-        self._attr_is_on = bool(self.coordinator.data[description.key])
-        self._attr_unique_id = f"{coordinator.api.mac.hex()}-{description.key}"
+        if description.key in self.coordinator.data:
+            self.entity_description = description
+            self._attr_is_on = bool(self.coordinator.data[description.key])
+            self._attr_unique_id = f"{coordinator.api.mac.hex()}-{description.key}"
 
     @callback
     def _handle_coordinator_update(self) -> None:
