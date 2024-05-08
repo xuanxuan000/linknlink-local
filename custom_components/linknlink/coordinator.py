@@ -17,11 +17,11 @@ from linknlink.exceptions import (
 )
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST, CONF_MAC, CONF_TIMEOUT, CONF_TYPE
+from homeassistant.const import CONF_HOST, CONF_MAC, CONF_TIMEOUT, CONF_TYPE, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .const import DEFAULT_PORT, DOMAIN
+from .const import DEFAULT_PORT, DOMAIN, get_domains
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -133,9 +133,10 @@ class LinknLinkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from the device."""
-        try:
-            data = await self.async_request(self.api.check_sensors)
-            return data
-        except AttributeError as e:
-            _LOGGER.error("Failed to execute function: %s", e)
-            return {}
+        if get_domains(self.api.type) & {Platform.BINARY_SENSOR, Platform.SENSOR}:
+            try:
+                data = await self.async_request(self.api.check_sensors)
+                return data
+            except AttributeError as e:
+                _LOGGER.error("Failed to execute function: %s", e)
+        return {}
